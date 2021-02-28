@@ -275,7 +275,6 @@ class Timer(TrainCallback):
     def on_batch_end(self, trainer, schedule, cb_dict, *args, **kwargs):
         cb_dict['Wall Time'] = time.strftime("%H:%M:%S", time.gmtime(time.time() - self.start))
         
-
 class Logger(TrainCallback):
     """A training callback used to log training statistics to the console. 
     Reads statistics from a TrainingSchedule's callback dictionary (`TrainingSchedule.cb_dict`).
