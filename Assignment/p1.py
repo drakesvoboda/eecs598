@@ -45,7 +45,7 @@ def main():
 
 def load_datasets(batch_size, world_size, rank):
   # Task 1: Choose an appropriate directory to download the datasets into
-  root_dir = '/media/drake/Passport Ultra/data/'
+  root_dir = './data/'
 
   extra_dataset = SVHN(root=root_dir, split='extra', download=True, transform=ToTensor())
   train_dataset = SVHN(root=root_dir, split='train', download=True, transform=ToTensor())
@@ -131,7 +131,7 @@ def create_model():
   input_size = 3072
   num_classes = 10
   
-  model = ConvNet(input_size, out_size=num_classes)
+  model = DeepModel(input_size, out_size=num_classes)
 
   # Task 2: Wrap the model in DistributedDataParallel to 
   # make the model train in a distributed fashion.
