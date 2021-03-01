@@ -29,8 +29,8 @@ def main():
     parser.add_argument('-nr', '--local_rank', default=0, type=int, help='ranking within the nodes')
     parser.add_argument('--batch_size', default=64, type=int, metavar='N', help='Batch size')
     parser.add_argument('--do_chkpt', default=False, action='store_true', help='Enable checkpointing')
-    parser.add_argument('-a', '--address')
-    parser.add_argument('-p', '--port')
+    parser.add_argument('-a', '--address', default="localhost")
+    parser.add_argument('-p', '--port', default="9955")
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
@@ -149,7 +149,7 @@ def eval_step(model, batch):
     out = model(images)
     loss = F.cross_entropy(out, labels)
     acc = accuracy(out, labels)
-    return {'val_loss': loss, 'val_acc': acc}
+    return {'val_loss': loss, 'val_acc': acc }
 
 def calc_stats(outputs):
     batch_losses = [x['val_loss'] for x in outputs]
@@ -159,8 +159,13 @@ def calc_stats(outputs):
     return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
 
 def evaluate(model, val_loader):
-    outputs = [eval_step(model, batch) for batch in val_loader]
-    return calc_stats(outputs)
+    model.eval()
+    with torch.no_grad():
+        outputs = [eval_step(model, batch) for batch in val_loader]
+        result = calc_stats(outputs)
+
+    model.train()
+    return result
 
 def epoch_report(epoch, result):
     print("Epoch [{}], val_loss: {:.4f}, val_acc: {:.4f}".format(epoch, result['val_loss'], result['val_acc']))
