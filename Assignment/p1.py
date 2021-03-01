@@ -16,6 +16,8 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.data import random_split
 from torch.utils.tensorboard import SummaryWriter
 
+from tqdm.auto import tqdm, trange
+
 # For deterministic runs
 torch.manual_seed(0)
 
@@ -174,7 +176,7 @@ def epoch_report(epoch, result):
 def run_epochs(epochs, lr, model, train_loader, val_loader, rank, opt_func=torch.optim.SGD, do_checkpoint=False):
     history = []
     optimizer = opt_func(model.parameters(), lr)
-    for epoch in trange(epochs, leave=False):
+    for epoch in epochs:
         # Training Phase 
         for batch in tqdm(train_loader, desc=f"Epoch {epoch}", leave=False):
             images, labels = batch 
