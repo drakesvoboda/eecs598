@@ -162,7 +162,7 @@ def calc_stats(outputs):
 def evaluate(model, val_loader):
     model.eval()
     with torch.no_grad():
-        outputs = [eval_step(model, batch) for batch in val_loader]
+        outputs = [eval_step(model, batch) for batch in tqdm(val_loader, desc=f"Validating", leave=False)]
         result = calc_stats(outputs)
 
     model.train()
