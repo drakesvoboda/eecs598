@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--do_chkpt', default=False, action='store_true', help='Enable checkpointing')
     parser.add_argument('-a', '--address', default="localhost")
     parser.add_argument('-p', '--port', default="9955")
+    parser.add_argument('-d', '--data_dir', default="../../data/")
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
@@ -43,9 +44,9 @@ def main():
     # This is to get around Python's GIL that prevents parallelism within independent threads.
     mp.spawn(train, nprocs=args.num_proc, args=(args,))
 
-def load_datasets(batch_size, world_size, rank):
+def load_datasets(batch_size, world_size, rank, data_dir):
   # Task 1: Choose an appropriate directory to download the datasets into
-  root_dir = './data/'
+  root_dir = data_dir
 
   extra_dataset = SVHN(root=root_dir, split='extra', download=True, transform=ToTensor())
   train_dataset = SVHN(root=root_dir, split='train', download=True, transform=ToTensor())
@@ -173,9 +174,9 @@ def epoch_report(epoch, result):
 def run_epochs(epochs, lr, model, train_loader, val_loader, rank, opt_func=torch.optim.SGD, do_checkpoint=False):
     history = []
     optimizer = opt_func(model.parameters(), lr)
-    for epoch in range(epochs):
+    for epoch in trange(epochs, leave=False):
         # Training Phase 
-        for batch in train_loader:
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch}", leave=False):
             images, labels = batch 
             # Task 1: Complete training loop
             # Step 1 Get model prediction, i.e. run the fwd pass
@@ -210,7 +211,7 @@ def train(proc_num, args):
     torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
     model = create_model()
-    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank)
+    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir)
 
     history = [evaluate(model, val_loader)]
     print("Pre-training accuracy'\n'{}".format(history))
