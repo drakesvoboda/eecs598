@@ -75,10 +75,12 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     # 2. Set train_loader's sampler to the distributed sampler
 
     # sampler = torch.utils.data.distributed.DistributedSampler(dataset=dataset, num_replicas=world_size, rank=rank)
+    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=12500*batch_size)
+
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
+                                                sampler=sampler,
                                                 batch_size=batch_size,
-                                                shuffle=True,
                                                 num_workers=0,
                                                 pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size*2, num_workers=4, pin_memory=True)

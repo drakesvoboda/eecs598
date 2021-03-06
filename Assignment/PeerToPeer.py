@@ -39,6 +39,7 @@ def main():
     parser.add_argument('-a', '--address', default="localhost")
     parser.add_argument('-p', '--port', default="9955")
     parser.add_argument('-d', '--data_dir', default="../../data/")
+    parser.add_argument('-i', '--iterations', type=int, default=10000)
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
@@ -51,7 +52,7 @@ def main():
     # This is to get around Python's GIL that prevents parallelism within independent threads.
     mp.spawn(train, nprocs=args.num_proc, args=(args,))
 
-def load_datasets(batch_size, world_size, rank, data_dir):
+def load_datasets(batch_size, world_size, rank, data_diri, iterations):
     # Task 1: Choose an appropriate directory to download the datasets into
     root_dir = data_dir
 
@@ -74,7 +75,8 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     #    and rank=rank.
     # 2. Set train_loader's sampler to the distributed sampler
 
-    sampler = torch.utils.data.distributed.DistributedSampler(dataset=dataset, num_replicas=world_size, rank=rank)
+    # sampler = torch.utils.data.distributed.DistributedSampler(dataset=dataset, num_replicas=world_size, rank=rank)
+    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=iterations*batch_size)
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
                                                 batch_size=batch_size,
@@ -168,7 +170,7 @@ def train(proc_num, args):
     torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://') 
 
     model = create_model()
-    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir)
+    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir, iterations=args.iterations)
     optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
     num_epochs = 1
