@@ -39,6 +39,8 @@ def main():
     parser.add_argument('-a', '--address', default="localhost")
     parser.add_argument('-p', '--port', default="9955")
     parser.add_argument('-d', '--data_dir', default="../../data/")
+    parser.add_argument('-i', '--iterations', type=int, default=10000)
+    parser.add_argument('-t', '--tau', type=int, default=6)
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
@@ -51,7 +53,7 @@ def main():
     # This is to get around Python's GIL that prevents parallelism within independent threads.
     mp.spawn(train, nprocs=args.num_proc, args=(args,))
 
-def load_datasets(batch_size, world_size, rank, data_dir):
+def load_datasets(batch_size, world_size, rank, data_dir, iterations):
     # Task 1: Choose an appropriate directory to download the datasets into
     root_dir = data_dir
 
@@ -65,8 +67,8 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     train_dataset = SVHN(root=root_dir, split='train', download=True, transform=transform)
     dataset = torch.utils.data.ConcatDataset([train_dataset, extra_dataset])
     num = len(dataset)//world_size
-    indicies = torch.arange(len(dataset))[num*rank:num*rank+num]
-    dataset = torch.utils.data.Subset(dataset, indicies)
+    #indicies = torch.arange(len(dataset))[num*rank:num*rank+num]
+    #dataset = torch.utils.data.Subset(dataset, indicies)
     val_dataset = SVHN(root=root_dir, split='test', download=True, transform=transform)
     # print("Train dataset: {}".format(dataset))
     # print("Val dataset: {}".format(val_dataset))
@@ -77,7 +79,7 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     #    and rank=rank.
     # 2. Set train_loader's sampler to the distributed sampler
 
-    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=12500*batch_size)
+    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=iterations*batch_size)
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
                                                 batch_size=batch_size,
@@ -159,7 +161,7 @@ def train(proc_num, args):
     num_trainers = args.world_size-1
 
     moving_rate = .9 / num_trainers
-    tau = 6
+    tau = args.tau
 
 #    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
@@ -176,7 +178,7 @@ def train(proc_num, args):
 
         param_server_rref = rpc.remote("parameter_server", get_parameter_server, args=(ConvNet(), moving_rate))
         model = remote_method(ParameterServer.get_model, param_server_rref)
-        train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, data_dir=args.data_dir)
+        train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, data_dir=args.data_dir, iterations=args.iterations)
         optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
         num_epochs = 1 
