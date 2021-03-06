@@ -77,7 +77,7 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     #    and rank=rank.
     # 2. Set train_loader's sampler to the distributed sampler
 
-    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=10800*batch_size)
+    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=11000*batch_size)
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
                                                 batch_size=batch_size,
@@ -92,46 +92,13 @@ def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
-class DeepModel(nn.Module):
-    def __init__(self, in_size, out_size):
-        super().__init__()
-        # 6 hidden layers
-        self.linear1 = nn.Linear(in_size, 1024)
-        self.linear2 = nn.Linear(1024, 512)
-        self.linear3 = nn.Linear(512, 256)
-        self.linear4 = nn.Linear(256, 128)
-        self.linear5 = nn.Linear(128, 64)
-        self.linear6 = nn.Linear(64, 32)
-        # output layer
-        self.linear7 = nn.Linear(32, out_size)
-        
-    def forward(self, xb):
-        # Flatten the image tensors
-        xb = xb.view(xb.size(0), -1)
-        # Get intermediate outputs using hidden layer
-        out = self.linear1(xb)
-        out = F.relu(out)
-        out = self.linear2(out)
-        out = F.relu(out)
-        out = self.linear3(out)
-        out = F.relu(out)
-        out = self.linear4(out)
-        out = F.relu(out)
-        out = self.linear5(out)
-        out = F.relu(out)
-        out = self.linear6(out)
-        out = F.relu(out)
-        # Get predictions using output layer
-        out = self.linear7(out)
-        return out
-
 class ConvNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5, padding=2)
+        self.conv1 = nn.Conv2d(3, 6, 5, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5, padding=2)
-        self.fc1 = nn.Linear(784, 64)
+        self.conv2 = nn.Conv2d(6, 16, 5, padding=1)
+        self.fc1 = nn.Linear(576, 64)
         self.fc3 = nn.Linear(64, 10)
 
     def forward(self, x, y=None):
@@ -220,7 +187,7 @@ def train(proc_num, args):
             #TrainingLossLogger(),
             #TrainingAccuracyLogger(accuracy),
             Validator(val_loader, accuracy, rank=rank-1),
-            TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-3),
+            TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=5e-4),
             #Timer(),
             Logger()
         ]
