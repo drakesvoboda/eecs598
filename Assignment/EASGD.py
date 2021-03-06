@@ -216,13 +216,13 @@ def train(proc_num, args):
         total_steps = len(train_loader) * num_epochs
 
         callbacks = [
-            #LogRank(rank),
+            LogRank(rank),
             #TrainingLossLogger(),
             #TrainingAccuracyLogger(accuracy),
-            #Validator(val_loader, accuracy, rank=rank-1),
+            Validator(val_loader, accuracy, rank=rank-1),
             TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-3),
             #Timer(),
-            #Logger()
+            Logger()
         ]
 
         trainer = EASGDTrainer(model, F.cross_entropy, optimizer, param_server_rref, rank, moving_rate, tau)
@@ -232,8 +232,8 @@ def train(proc_num, args):
 
         trainer.train(schedule)
         #model = remote_method(ParameterServer.get_model, param_server_rref)
-        result = evaluate(model, val_loader)
-        epoch_report(0, result)
+        #result = evaluate(model, val_loader)
+        #epoch_report(0, result)
 
         end = time.time()
         print(end - start, " seconds to train")
