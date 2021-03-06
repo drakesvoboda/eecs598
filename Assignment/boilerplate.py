@@ -68,7 +68,7 @@ class TrainingSchedule():
             yield data
 
     def __iter__(self):
-        for i in trange(self.epoch, self.num_epochs, initial=self.epoch, total=self.num_epochs):
+        for i in range(self.num_epochs):
             self.epoch = i
             yield i
 

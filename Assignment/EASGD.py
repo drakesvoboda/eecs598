@@ -125,19 +125,17 @@ class DeepModel(nn.Module):
 class ConvNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5, padding=2)
+        self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5, padding=2)
-        self.fc1 = nn.Linear(784, 64)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(64, 10)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(256, 32)
+        self.fc3 = nn.Linear(32, 10)
 
     def forward(self, x, y=None):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = torch.flatten(x, start_dim=1)
         x = F.relu(self.fc1(x))
-        # x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
@@ -167,7 +165,7 @@ def train(proc_num, args):
     moving_rate = .9 / num_trainers
     tau = 5
 
-    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
+#    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
     if rank == 0:
         run_parameter_server(rank, args.world_size)
