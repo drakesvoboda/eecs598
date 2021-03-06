@@ -44,8 +44,8 @@ def main():
     print(args)
 
     # Task 2: Assign IP address and port for master process, i.e. process with rank=0
-    os.environ['MASTER_ADDR'] = args.address
-    os.environ['MASTER_PORT'] = args.port
+    #os.environ['MASTER_ADDR'] = args.address
+    #os.environ['MASTER_PORT'] = args.port
 
     # Spawns one or many processes untied to the first Python process that runs on the file.
     # This is to get around Python's GIL that prevents parallelism within independent threads.
@@ -64,9 +64,6 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     extra_dataset = SVHN(root=root_dir, split='extra', download=True, transform=transform)
     train_dataset = SVHN(root=root_dir, split='train', download=True, transform=transform)
     dataset = torch.utils.data.ConcatDataset([train_dataset, extra_dataset])
-    num = len(dataset)//world_size
-    indicies = torch.arange(len(dataset))[num*rank:num*rank+num]
-    dataset = torch.utils.data.Subset(dataset, indicies)
     val_dataset = SVHN(root=root_dir, split='test', download=True, transform=transform)
     # print("Train dataset: {}".format(dataset))
     # print("Val dataset: {}".format(val_dataset))
@@ -77,14 +74,14 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     #    and rank=rank.
     # 2. Set train_loader's sampler to the distributed sampler
 
-    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=10800*batch_size)
+    # sampler = torch.utils.data.distributed.DistributedSampler(dataset=dataset, num_replicas=world_size, rank=rank)
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
                                                 batch_size=batch_size,
-                                                sampler=sampler,
+                                                shuffle=True,
                                                 num_workers=0,
                                                 pin_memory=True)
-    val_loader = DataLoader(val_ds, 256, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size*2, num_workers=4, pin_memory=True)
     
     return train_loader, val_loader
   
@@ -128,117 +125,76 @@ class DeepModel(nn.Module):
 class ConvNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5, padding=1)
+        self.conv1 = nn.Conv2d(3, 6, 5, padding=2)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5, padding=1)
-        self.fc1 = nn.Linear(576, 64)
-        self.fc3 = nn.Linear(64, 10)
+        self.conv2 = nn.Conv2d(6, 16, 5, padding=2)
+        self.fc1 = nn.Linear(784, 64)
+        self.fc2 = nn.Linear(64, 10)
 
     def forward(self, x, y=None):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = torch.flatten(x, start_dim=1)
         x = F.relu(self.fc1(x))
-        x = self.fc3(x)
+        x = self.fc2(x)
         return x
+    
+def create_model():
+    input_size = 3072
+    num_classes = 10
 
-class EASGDTrainer(Trainer):
-    def __init__(self, model: torch.nn.Module, criterion: callable, optimizer: torch.optim.Optimizer, param_server_rref, rank: int, alpha: float, tau: int):
-        super().__init__(model, criterion, optimizer)
-        self.param_server_rref = param_server_rref
-        self.rank = rank
-        self.alpha = alpha
-        self.tau = tau
+    model = ConvNet()
 
-    def step(self, *item):
-        if (self.schedule.iteration + self.rank) % self.tau == 0:
-            with torch.no_grad():
-                param_diff = remote_method(ParameterServer.sync_params, self.param_server_rref, self.model)
+    # Task 2: Wrap the model in DistributedDataParallel to 
+    # make the model train in a distributed fashion.
 
-                for (_, diff), (_, param) in zip(param_diff.items(), self.model.named_parameters()):
-                    param.copy_(param - self.alpha * diff) 
+    #model = torch.nn.parallel.DistributedDataParallel(model)
 
-        return super().step(*item)
+    # Printing sizes of model parameters
+    for t in model.parameters():
+        print(t.shape)
 
-def eval_step(model, batch):
-    images, labels = batch
-    out = model(images)
-    loss = F.cross_entropy(out, labels)
-    acc = accuracy(out, labels)
-    return {'val_loss': loss, 'val_acc': acc }
-
-def calc_stats(outputs):
-    batch_losses = [x['val_loss'] for x in outputs]
-    epoch_loss = torch.stack(batch_losses).mean()
-    batch_accs = [x['val_acc'] for x in outputs]
-    epoch_acc = torch.stack(batch_accs).mean()
-    return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
-
-def evaluate(model, val_loader):
-    model.eval()
-    with torch.no_grad():
-        outputs = [eval_step(model, batch) for batch in tqdm(val_loader, desc=f"Validating", leave=False)]
-        result = calc_stats(outputs)
-
-    model.train()
-    return result
-
-def epoch_report(epoch, result):
-    print("Epoch [{}], val_loss: {:.4f}, val_acc: {:.4f}".format(epoch, result['val_loss'], result['val_acc']))
+    return model
 
 def train(proc_num, args):
-    rank = args.local_rank * args.num_proc + proc_num
+    rank = args.local_rank * args.num_proc + proc_num   
 
-    num_trainers = args.world_size-1
+    # Task 2: Initialize distributed process group with following parameters,
+    #  backend = 'gloo'
+    #  init_method = 'env://'
+    #  world_size = args.world_size
+    #  rank = rank   
+    
+    #torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://') 
 
-    moving_rate = .9 / num_trainers
-    tau = 3
+    model = create_model()
+    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir)
+    optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
-#    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
+    num_epochs = 2
+    total_steps = len(train_loader) * num_epochs
 
-    if rank == 0:
-        run_parameter_server(rank, args.world_size)
-    else:
-        # Task 2: Initialize distributed process group with following parameters,
-        #  backend = 'gloo'
-        #  init_method = 'env://'
-        #  world_size = args.world_size
-        #  rank = rank    
+    callbacks = [
+        LogRank(rank),
+        TrainingLossLogger(),
+        TrainingAccuracyLogger(accuracy),
+        Validator(val_loader, accuracy, rank=rank-1),
+        TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-3),
+        Timer(),
+        Logger()
+    ]
 
-        rpc.init_rpc(name=f"trainer_{rank}", rank=rank, world_size=args.world_size)
+    trainer = Trainer(model, F.cross_entropy, optimizer)
+    schedule = TrainingSchedule(train_loader, num_epochs, callbacks, rank=rank)  
+    
+    start = time.time()
 
-        param_server_rref = rpc.remote("parameter_server", get_parameter_server, args=(ConvNet(), moving_rate))
-        model = remote_method(ParameterServer.get_model, param_server_rref)
-        train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, data_dir=args.data_dir)
-        optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
+    trainer.train(schedule)
 
-        num_epochs = 1 
-        total_steps = len(train_loader) * num_epochs
+    end = time.time()
+    print(end - start, " seconds to train")
 
-        callbacks = [
-            #LogRank(rank),
-            #TrainingLossLogger(),
-            #TrainingAccuracyLogger(accuracy),
-            #Validator(val_loader, accuracy, rank=rank-1),
-            TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-3),
-            #Timer(),
-            #Logger()
-        ]
-
-        trainer = EASGDTrainer(model, F.cross_entropy, optimizer, param_server_rref, rank, moving_rate, tau)
-        schedule = TrainingSchedule(train_loader, num_epochs, callbacks, rank=rank-1)  
-        
-        start = time.time()
-
-        trainer.train(schedule)
-        #model = remote_method(ParameterServer.get_model, param_server_rref)
-        result = evaluate(model, val_loader)
-        epoch_report(0, result)
-
-        end = time.time()
-        print(end - start, " seconds to train")
-
-        rpc.shutdown()
+    rpc.shutdown()
 
 if __name__ == '__main__':
     main()
