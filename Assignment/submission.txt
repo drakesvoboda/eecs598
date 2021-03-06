@@ -1,0 +1,20 @@
+q1.
+
+q2. 9238.130583047867  seconds to train
+
+q3. 9353.67615866661  seconds to train
+
+q4. batch size 32 : 12142.804160356522  seconds to train
+    batch size 256 : 7170.198219060898  seconds to train
+
+    Smaller batch sizes have higher CPU utilization, but larger batch sizes finish the 40 epochs 
+    more quickly because there are fewer total iterations.
+
+    Larger batch sizes train faster. This is because there are fewer total iterations to complete.
+    Larger batch sizes gave worse accuracy, this is because there are fewer weight updates.
+
+q6. 1 node : 10694.454135894775  seconds to train
+    2 node : 15169.921590805054  seconds to train
+    3 node : 16879.323309659958  seconds to train
+
+q7. 12775.99900341034 : 11723.223086357117  seconds to train

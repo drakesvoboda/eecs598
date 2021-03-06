@@ -36,13 +36,16 @@ def main():
     parser.add_argument('-nr', '--local_rank', default=0, type=int, help='ranking within the nodes')
     parser.add_argument('--batch_size', default=64, type=int, metavar='N', help='Batch size')
     parser.add_argument('--do_chkpt', default=False, action='store_true', help='Enable checkpointing')
+    parser.add_argument('-a', '--address', default="localhost")
+    parser.add_argument('-p', '--port', default="9955")
+    parser.add_argument('-d', '--data_dir', default="../../data/")
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
 
     # Task 2: Assign IP address and port for master process, i.e. process with rank=0
-    os.environ['MASTER_ADDR'] = "localhost"
-    os.environ['MASTER_PORT'] = "29500"
+    os.environ['MASTER_ADDR'] = args.address
+    os.environ['MASTER_PORT'] = args.port
 
     # Spawns one or many processes untied to the first Python process that runs on the file.
     # This is to get around Python's GIL that prevents parallelism within independent threads.
@@ -162,7 +165,7 @@ def train(proc_num, args):
     num_trainers = args.world_size-1
 
     moving_rate = .9 / num_trainers
-    tau = 3
+    tau = 5
 
     # torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
