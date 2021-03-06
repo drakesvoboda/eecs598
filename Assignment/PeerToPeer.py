@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--do_chkpt', default=False, action='store_true', help='Enable checkpointing')
     parser.add_argument('-a', '--address', default="localhost")
     parser.add_argument('-p', '--port', default="9955")
+    parser.add_argument('-d', '--data_dir', default="../../data/")
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
@@ -50,9 +51,9 @@ def main():
     # This is to get around Python's GIL that prevents parallelism within independent threads.
     mp.spawn(train, nprocs=args.num_proc, args=(args,))
 
-def load_datasets(batch_size, world_size, rank):
+def load_datasets(batch_size, world_size, rank, data_dir):
     # Task 1: Choose an appropriate directory to download the datasets into
-    root_dir = '/media/drake/Passport Ultra/data/'
+    root_dir = data_dir
 
     transform = transforms.Compose([
         transforms.CenterCrop([30, 30]),
@@ -167,7 +168,7 @@ def train(proc_num, args):
     torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://') 
 
     model = create_model()
-    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank)
+    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir)
     optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
     num_epochs = 1

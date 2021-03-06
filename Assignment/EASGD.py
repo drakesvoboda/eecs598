@@ -167,7 +167,7 @@ def train(proc_num, args):
     moving_rate = .9 / num_trainers
     tau = 5
 
-    # torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
+    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
     if rank == 0:
         run_parameter_server(rank, args.world_size)
