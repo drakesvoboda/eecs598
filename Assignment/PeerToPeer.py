@@ -180,9 +180,9 @@ def train(proc_num, args):
         LogRank(rank),
         #TrainingLossLogger(),
         #TrainingAccuracyLogger(accuracy),
-        #Validator(val_loader, accuracy, rank=rank-1),
+        Validator(val_loader, accuracy, rank=rank-1),
         TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=5e-4),
-        #Timer(),
+        Timer(),
         Logger()
     ]
 
