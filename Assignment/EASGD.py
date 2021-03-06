@@ -81,7 +81,7 @@ def load_datasets(batch_size, world_size, rank, data_dir):
                                                 sampler=sampler,
                                                 num_workers=0,
                                                 pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size*2, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_ds, 256, num_workers=4, pin_memory=True)
     
     return train_loader, val_loader
   
@@ -125,11 +125,11 @@ class DeepModel(nn.Module):
 class ConvNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.conv1 = nn.Conv2d(3, 6, 5, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(256, 32)
-        self.fc3 = nn.Linear(32, 10)
+        self.conv2 = nn.Conv2d(6, 16, 5, padding=1)
+        self.fc1 = nn.Linear(576, 64)
+        self.fc3 = nn.Linear(64, 10)
 
     def forward(self, x, y=None):
         x = self.pool(F.relu(self.conv1(x)))
@@ -163,7 +163,7 @@ def train(proc_num, args):
     num_trainers = args.world_size-1
 
     moving_rate = .9 / num_trainers
-    tau = 5
+    tau = 3
 
 #    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
@@ -183,7 +183,7 @@ def train(proc_num, args):
         train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, data_dir=args.data_dir)
         optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
-        num_epochs = 1
+        num_epochs = 2 
         total_steps = len(train_loader) * num_epochs
 
         callbacks = [
@@ -191,7 +191,7 @@ def train(proc_num, args):
             TrainingLossLogger(),
             TrainingAccuracyLogger(accuracy),
             Validator(val_loader, accuracy, rank=rank-1),
-            TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps),
+            TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-4),
             Timer(),
             Logger()
         ]
