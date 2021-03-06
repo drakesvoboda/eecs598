@@ -77,7 +77,7 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     #    and rank=rank.
     # 2. Set train_loader's sampler to the distributed sampler
 
-    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=12000*batch_size)
+    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=12500*batch_size)
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
                                                 batch_size=batch_size,
@@ -159,7 +159,7 @@ def train(proc_num, args):
     num_trainers = args.world_size-1
 
     moving_rate = .9 / num_trainers
-    tau = 3
+    tau = 6
 
 #    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
