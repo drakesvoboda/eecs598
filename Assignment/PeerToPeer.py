@@ -178,11 +178,11 @@ def train(proc_num, args):
 
     callbacks = [
         LogRank(rank),
-        TrainingLossLogger(),
-        TrainingAccuracyLogger(accuracy),
-        Validator(val_loader, accuracy, rank=rank-1),
-        TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps),
-        Timer(),
+        #TrainingLossLogger(),
+        #TrainingAccuracyLogger(accuracy),
+        #Validator(val_loader, accuracy, rank=rank-1),
+        TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=5e-4),
+        #Timer(),
         Logger()
     ]
 
@@ -195,8 +195,6 @@ def train(proc_num, args):
 
     end = time.time()
     print(end - start, " seconds to train")
-
-    rpc.shutdown()
 
 if __name__ == '__main__':
     main()
