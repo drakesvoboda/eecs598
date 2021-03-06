@@ -39,8 +39,8 @@ def main():
     parser.add_argument('-a', '--address', default="localhost")
     parser.add_argument('-p', '--port', default="9955")
     parser.add_argument('-d', '--data_dir', default="../../data/")
-    parser.add_argument('-i', '--iterations', default=10000)
-    parser.add_argument('-t', '--tau', default=6)
+    parser.add_argument('-i', '--iterations', type=int, default=10000)
+    parser.add_argument('-t', '--tau', type=int, default=6)
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
