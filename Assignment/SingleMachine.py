@@ -89,6 +89,40 @@ def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
+def calc_stats(outputs):
+    batch_losses = [x['val_loss'] for x in outputs]
+    epoch_loss = torch.stack(batch_losses).mean()
+    batch_accs = [x['val_acc'] for x in outputs]
+    epoch_acc = torch.stack(batch_accs).mean()
+    return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
+
+
+def eval_step(model, batch):
+    images, labels = batch
+    out = model(images)
+    loss = F.cross_entropy(out, labels)
+    acc = accuracy(out, labels)
+    return {'val_loss': loss, 'val_acc': acc }
+
+def calc_stats(outputs):
+    batch_losses = [x['val_loss'] for x in outputs]
+    epoch_loss = torch.stack(batch_losses).mean()
+    batch_accs = [x['val_acc'] for x in outputs]
+    epoch_acc = torch.stack(batch_accs).mean()
+    return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
+
+def evaluate(model, val_loader):
+    model.eval()
+    with torch.no_grad():
+        outputs = [eval_step(model, batch) for batch in tqdm(val_loader, desc=f"Validating", leave=False)]
+        result = calc_stats(outputs)
+
+    model.train()
+    return result
+
+def epoch_report(epoch, result):
+    print("Epoch [{}], val_loss: {:.4f}, val_acc: {:.4f}".format(epoch, result['val_loss'], result['val_acc']))
+
 class DeepModel(nn.Module):
     def __init__(self, in_size, out_size):
         super().__init__()
@@ -171,17 +205,17 @@ def train(proc_num, args):
     train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir)
     optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
-    num_epochs = 2
+    num_epochs = 1
     total_steps = len(train_loader) * num_epochs
 
     callbacks = [
-        LogRank(rank),
-        TrainingLossLogger(),
-        TrainingAccuracyLogger(accuracy),
-        Validator(val_loader, accuracy, rank=rank-1),
+        #LogRank(rank),
+        #TrainingLossLogger(),
+        #TrainingAccuracyLogger(accuracy),
+        #Validator(val_loader, accuracy, rank=rank-1),
         TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-3),
-        Timer(),
-        Logger()
+        #Timer(),
+        #Logger()
     ]
 
     trainer = Trainer(model, F.cross_entropy, optimizer)
@@ -190,11 +224,12 @@ def train(proc_num, args):
     start = time.time()
 
     trainer.train(schedule)
+    result = evaluate(model, val_loader)
+    epoch_report(0, result)
 
     end = time.time()
     print(end - start, " seconds to train")
 
-    rpc.shutdown()
 
 if __name__ == '__main__':
     main()
