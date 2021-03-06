@@ -182,7 +182,7 @@ def train(proc_num, args):
 
         param_server_rref = rpc.remote("parameter_server", get_parameter_server, args=(ConvNet(), moving_rate))
         model = remote_method(ParameterServer.get_model, param_server_rref)
-        train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, args.data_dir)
+        train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, data_dir=args.data_dir)
         optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
         num_epochs = 1
