@@ -55,12 +55,18 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     # Task 1: Choose an appropriate directory to download the datasets into
     root_dir = data_dir
 
-    extra_dataset = SVHN(root=root_dir, split='extra', download=True, transform=ToTensor())
-    train_dataset = SVHN(root=root_dir, split='train', download=True, transform=ToTensor())
+    transform = transforms.Compose([
+        transforms.CenterCrop([30, 30]),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    ])
+
+    extra_dataset = SVHN(root=root_dir, split='extra', download=True, transform=transform)
+    train_dataset = SVHN(root=root_dir, split='train', download=True, transform=transform)
     dataset = torch.utils.data.ConcatDataset([train_dataset, extra_dataset])
-    val_dataset = SVHN(root=root_dir, split='test', download=True, transform=ToTensor())
-    print("Train dataset: {}".format(dataset))
-    print("Val dataset: {}".format(val_dataset))
+    val_dataset = SVHN(root=root_dir, split='test', download=True, transform=transform)
+    # print("Train dataset: {}".format(dataset))
+    # print("Val dataset: {}".format(val_dataset))
     val_ds = val_dataset
 
     # Task 2: modify train loader to work with multiple processes
@@ -176,7 +182,7 @@ def train(proc_num, args):
 
         param_server_rref = rpc.remote("parameter_server", get_parameter_server, args=(ConvNet(), moving_rate))
         model = remote_method(ParameterServer.get_model, param_server_rref)
-        train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir)
+        train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, args.data_dir)
         optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
         num_epochs = 1
