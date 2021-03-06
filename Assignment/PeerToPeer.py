@@ -52,7 +52,7 @@ def main():
     # This is to get around Python's GIL that prevents parallelism within independent threads.
     mp.spawn(train, nprocs=args.num_proc, args=(args,))
 
-def load_datasets(batch_size, world_size, rank, data_diri, iterations):
+def load_datasets(batch_size, world_size, rank, data_dir, iterations):
     # Task 1: Choose an appropriate directory to download the datasets into
     root_dir = data_dir
 
