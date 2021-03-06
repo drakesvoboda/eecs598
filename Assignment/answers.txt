@@ -1,6 +1,27 @@
 q1.
 
-q2.
+q2. 10397.991077184677  seconds to train
+    Run 2: 9238.130583047867  seconds to train
 
 q3. 10509.40374159813  seconds to train
+    Run 2: 9353.67615866661  seconds to train
 
+q4. batch size 32 : 13460.56275844574  seconds to train   
+    Run 2 : 12142.804160356522  seconds to train
+    batch size 256: 8475.199378728867  seconds to train  0.5957 % Accuracy
+    Run 2 : 7170.198219060898  seconds to train
+
+    Larger batch sizes train faster. This is because there are fewer total iterations to complete.
+    Larger batch sizes gave worse accuracy, this is because there are fewer weight updates.
+
+    Smaller batch sizes have higher utilization, but larger batch sizes finish the 40 epochs more quickly because there are fewer iterations.
+
+q6. 1 node : 11885.793574094772  seconds to train
+    Run 2 : 10694.454135894775  seconds to train
+    2 node : 16536.937649011612  seconds to train
+    Run 2 : 15169.921590805054  seconds to train
+    3 node : 
+    Run 2 : 16879.323309659958  seconds to train
+
+q7. 12775.99900341034  seconds to train
+    Run 2 : 11723.223086357117  seconds to train
