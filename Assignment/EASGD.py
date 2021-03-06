@@ -64,6 +64,9 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     extra_dataset = SVHN(root=root_dir, split='extra', download=True, transform=transform)
     train_dataset = SVHN(root=root_dir, split='train', download=True, transform=transform)
     dataset = torch.utils.data.ConcatDataset([train_dataset, extra_dataset])
+    num = len(dataset)//world_size
+    indicies = torch.arange(len(dataset))[num*rank:num*rank+num]
+    dataset = torch.utils.data.Subset(dataset, indicies)
     val_dataset = SVHN(root=root_dir, split='test', download=True, transform=transform)
     # print("Train dataset: {}".format(dataset))
     # print("Val dataset: {}".format(val_dataset))
@@ -74,7 +77,7 @@ def load_datasets(batch_size, world_size, rank, data_dir):
     #    and rank=rank.
     # 2. Set train_loader's sampler to the distributed sampler
 
-    sampler = torch.utils.data.distributed.DistributedSampler(dataset=dataset, num_replicas=world_size, rank=rank)
+    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=12000*batch_size)
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
                                                 batch_size=batch_size,
@@ -163,7 +166,7 @@ def train(proc_num, args):
     num_trainers = args.world_size-1
 
     moving_rate = .9 / num_trainers
-    tau = 3
+    tau = 8
 
 #    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://')
 
@@ -183,7 +186,7 @@ def train(proc_num, args):
         train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=num_trainers, rank=rank-1, data_dir=args.data_dir)
         optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
-        num_epochs = 2 
+        num_epochs = 1 
         total_steps = len(train_loader) * num_epochs
 
         callbacks = [
@@ -191,7 +194,7 @@ def train(proc_num, args):
             TrainingLossLogger(),
             TrainingAccuracyLogger(accuracy),
             Validator(val_loader, accuracy, rank=rank-1),
-            TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-4),
+            TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-3),
             Timer(),
             Logger()
         ]
