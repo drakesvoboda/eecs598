@@ -39,20 +39,19 @@ def main():
     parser.add_argument('-a', '--address', default="localhost")
     parser.add_argument('-p', '--port', default="9955")
     parser.add_argument('-d', '--data_dir', default="../../data/")
-    parser.add_argument('-i', '--iterations', type=int, default=10000)
     args = parser.parse_args()
     args.world_size = args.num_proc * args.nodes
     print(args)
 
     # Task 2: Assign IP address and port for master process, i.e. process with rank=0
-    os.environ['MASTER_ADDR'] = args.address
-    os.environ['MASTER_PORT'] = args.port
+    #os.environ['MASTER_ADDR'] = args.address
+    #os.environ['MASTER_PORT'] = args.port
 
     # Spawns one or many processes untied to the first Python process that runs on the file.
     # This is to get around Python's GIL that prevents parallelism within independent threads.
     mp.spawn(train, nprocs=args.num_proc, args=(args,))
 
-def load_datasets(batch_size, world_size, rank, data_dir, iterations):
+def load_datasets(batch_size, world_size, rank, data_dir):
     # Task 1: Choose an appropriate directory to download the datasets into
     root_dir = data_dir
 
@@ -76,20 +75,55 @@ def load_datasets(batch_size, world_size, rank, data_dir, iterations):
     # 2. Set train_loader's sampler to the distributed sampler
 
     # sampler = torch.utils.data.distributed.DistributedSampler(dataset=dataset, num_replicas=world_size, rank=rank)
-    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=iterations*batch_size)
+    sampler = torch.utils.data.sampler.RandomSampler(dataset, replacement=True, num_samples=12500*batch_size)
+
 
     train_loader = torch.utils.data.DataLoader(dataset=dataset,   
-                                                batch_size=batch_size,
                                                 sampler=sampler,
+                                                batch_size=batch_size,
                                                 num_workers=0,
                                                 pin_memory=True)
-    val_loader = DataLoader(val_ds, 256, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size*2, num_workers=4, pin_memory=True)
     
     return train_loader, val_loader
   
 def accuracy(outputs, labels):
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
+
+def calc_stats(outputs):
+    batch_losses = [x['val_loss'] for x in outputs]
+    epoch_loss = torch.stack(batch_losses).mean()
+    batch_accs = [x['val_acc'] for x in outputs]
+    epoch_acc = torch.stack(batch_accs).mean()
+    return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
+
+
+def eval_step(model, batch):
+    images, labels = batch
+    out = model(images)
+    loss = F.cross_entropy(out, labels)
+    acc = accuracy(out, labels)
+    return {'val_loss': loss, 'val_acc': acc }
+
+def calc_stats(outputs):
+    batch_losses = [x['val_loss'] for x in outputs]
+    epoch_loss = torch.stack(batch_losses).mean()
+    batch_accs = [x['val_acc'] for x in outputs]
+    epoch_acc = torch.stack(batch_accs).mean()
+    return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
+
+def evaluate(model, val_loader):
+    model.eval()
+    with torch.no_grad():
+        outputs = [eval_step(model, batch) for batch in tqdm(val_loader, desc=f"Validating", leave=False)]
+        result = calc_stats(outputs)
+
+    model.train()
+    return result
+
+def epoch_report(epoch, result):
+    print("Epoch [{}], val_loss: {:.4f}, val_acc: {:.4f}".format(epoch, result['val_loss'], result['val_acc']))
 
 class DeepModel(nn.Module):
     def __init__(self, in_size, out_size):
@@ -150,7 +184,7 @@ def create_model():
     # Task 2: Wrap the model in DistributedDataParallel to 
     # make the model train in a distributed fashion.
 
-    model = torch.nn.parallel.DistributedDataParallel(model)
+    #model = torch.nn.parallel.DistributedDataParallel(model)
 
     # Printing sizes of model parameters
     for t in model.parameters():
@@ -167,23 +201,23 @@ def train(proc_num, args):
     #  world_size = args.world_size
     #  rank = rank   
     
-    torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://') 
+    #torch.distributed.init_process_group(backend='gloo', world_size=args.world_size, rank=rank, init_method='env://') 
 
     model = create_model()
-    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir, iterations=args.iterations)
+    train_loader, val_loader = load_datasets(batch_size=args.batch_size, world_size=args.world_size, rank=rank, data_dir=args.data_dir)
     optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=.9, weight_decay=0.0001)
 
     num_epochs = 1
     total_steps = len(train_loader) * num_epochs
 
     callbacks = [
-        LogRank(rank),
+        #LogRank(rank),
         #TrainingLossLogger(),
         #TrainingAccuracyLogger(accuracy),
-        Validator(val_loader, accuracy, rank=rank-1),
-        TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=5e-4),
-        Timer(),
-        Logger()
+        #Validator(val_loader, accuracy, rank=rank-1),
+        TorchOnBatchLRScheduleCallback(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=total_steps, eta_min=1e-3),
+        #Timer(),
+        #Logger()
     ]
 
     trainer = Trainer(model, F.cross_entropy, optimizer)
@@ -192,9 +226,12 @@ def train(proc_num, args):
     start = time.time()
 
     trainer.train(schedule)
+    result = evaluate(model, val_loader)
+    epoch_report(0, result)
 
     end = time.time()
     print(end - start, " seconds to train")
+
 
 if __name__ == '__main__':
     main()
